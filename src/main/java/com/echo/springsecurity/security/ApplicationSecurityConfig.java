@@ -1,29 +1,30 @@
 package com.echo.springsecurity.security;
 
+import com.echo.springsecurity.auth.ApplicationUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 import java.util.concurrent.TimeUnit;
 
-import static com.echo.springsecurity.security.ApplicationUserRole.*;
+import static com.echo.springsecurity.security.ApplicationUserRole.STUDENT;
 
 @Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)             // for method level security
 public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationUserDetailsService userDetailsService;
 
-    public ApplicationSecurityConfig(PasswordEncoder passwordEncoder) {
+    public ApplicationSecurityConfig(PasswordEncoder passwordEncoder, ApplicationUserDetailsService userDetailsService) {
         this.passwordEncoder = passwordEncoder;
+        this.userDetailsService = userDetailsService;
     }
 
 
@@ -46,25 +47,26 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
                 .authenticated()                                                    // -> Must be authenticated
                 .and()
                     //.httpBasic();                                                     // -> Using basic authentication.
-                    .formLogin()
+                .formLogin()
                     .loginPage("/login").permitAll()                                    // -> form based authentication
                     .defaultSuccessUrl("/courses",true)          // -> default successURL for successful authentication
                     .usernameParameter("username")                                      // customizing user name and password client side name parameter
                     .passwordParameter("password")
                 .and()
-                    .rememberMe()
+                .rememberMe()
                     .tokenValiditySeconds((int) TimeUnit.DAYS.toSeconds(21))    // defining session remember me session ID validity
                     .key("something very secured")                                      // defining the hashing key for the hashing algorithm
                     .rememberMeParameter("remember-me")
                 .and()
-                    .logout()                                                            // logout, with clear authentication and session, also deleting cookie
+                .logout()                                                            // logout, with clear authentication and session, also deleting cookie
+                    .logoutUrl("/logout")
                     .clearAuthentication(true)
                     .invalidateHttpSession(true)
                     .deleteCookies("JSESSIONID","remember-me")
                     .logoutSuccessUrl("/login");
     }
 
-    // This user details service is how we retrieve our users from database. It is an interface which is implemented by several
+    /*// This user details service is how we retrieve our users from database. It is an interface which is implemented by several
     // classes. we will use the in in memory userdetails manager for now.
     @Override
     @Bean
@@ -89,5 +91,19 @@ public class ApplicationSecurityConfig extends WebSecurityConfigurerAdapter {
                 .build();
 
         return  new InMemoryUserDetailsManager(student, admin, adminTrainee);
+    }*/
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.authenticationProvider(daoAuthenticationProvider());
+    }
+
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider(){
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setPasswordEncoder(passwordEncoder);
+        provider.setUserDetailsService(userDetailsService);
+
+        return provider;
     }
 }
